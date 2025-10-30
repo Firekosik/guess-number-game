@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Угадай Число - Веб версия</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Угадай Число</h1>
+            <div class="player-info">
+                <span id="playerName">{{ player_name }}</span>
+                <span class="score">🏆 Очков: <span id="score">{{ score }}</span></span>
+            </div>
+        </header>
+
+        <main>
+            <div class="game-area">
+                <div class="game-info">
+                    <p>Попытка: <span id="attempt">{{ attempts }}</span>/<span id="maxAttempts">{{ max_attempts
+                            }}</span></p>
+                </div>
+
+                <div class="input-section">
+                    <input type="number" id="guessInput" placeholder="Введите число..." min="1" max="100">
+                    <button onclick="makeGuess()" id="guessBtn">Угадать!</button>
+                </div>
+
+                <div class="controls">
+                    <select id="difficulty">
+                        <option value="easy">Легкая (1-50, 10 попыток)</option>
+                        <option value="medium" selected>Средняя (1-100, 7 попыток)</option>
+                        <option value="hard">Сложная (1-200, 5 попыток)</option>
+                    </select>
+                    <input type="text" id="nameInput" placeholder="Ваше имя" value="{{ player_name }}">
+                    <button onclick="startNewGame()">Новая игра</button>
+                </div>
+
+                <div id="message" class="message"></div>
+
+                <div id="gameLog" class="game-log"></div>
+            </div>
+
+            <div class="stats-area">
+                <h3>📊 Глобальная статистика</h3>
+                <div class="stats">
+                    <p>Всего игр: <strong>{{ stats.total_games }}</strong></p>
+                    <p>Побед: <strong>{{ stats.total_wins }}</strong></p>
+
+                    <h4>🏆 Лучшие игроки:</h4>
+                    <div id="bestPlayers">
+                        {% for player in stats.best_players[:5] %}
+                        <div class="player">{{ player.name }}: {{ player.score }} очков</div>
+                        {% endfor %}
+                    </div>
+
+                    <h4>🕐 Последние игры:</h4>
+                    <div id="recentGames">
+                        {% for game in stats.recent_games %}
+                        <div class="game {{ 'win' if game.won else 'lose' }}">
+                            {{ game.name }}: {{ game.score }} очков ({{ game.time }})
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let gameOver = false;
+
+        function makeGuess() {
+            if (gameOver) {
+                showMessage('Начните новую игру!', 'error');
+                return;
+            }
+
+            const guessInput = document.getElementById('guessInput');
+            const guess = parseInt(guessInput.value);
+
+            if (isNaN(guess) || guess < 1 || guess > 100) {
+                showMessage('Введите число от 1 до 100!', 'error');
+                return;
+            }
+
+            fetch('/guess', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'guess=' + guess
+            })
+                .then(response => response.json())
+                .then(data => {
+                    updateGameState(data);
+                    addToGameLog(guess, data.message);
+
+                    if (data.result === 'win' || data.result === 'lose') {
+                        gameOver = true;
+                        if (data.result === 'win') {
+                            document.getElementById('score').textContent = data.total_score;
+                        }
+                    }
+
+                    guessInput.value = '';
+                    guessInput.focus();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Ошибка соединения с сервером', 'error');
+                });
+        }
+
+        function startNewGame() {
+            const difficulty = document.getElementById('difficulty').value;
+            const playerName = document.getElementById('nameInput').value || 'Игрок';
+
+            fetch('/new_game', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'difficulty=' + difficulty + '&player_name=' + encodeURIComponent(playerName)
+            })
+                .then(response => response.json())
+                .then(data => {
+                    gameOver = false;
+                    document.getElementById('playerName').textContent = data.player_name;
+                    document.getElementById('attempt').textContent = '0';
+                    document.getElementById('maxAttempts').textContent = data.max_attempts;
+                    document.getElementById('gameLog').innerHTML = '';
+                    showMessage(data.message, 'info');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showMessage('Ошибка начала новой игры', 'error');
+                });
+        }
+
+        function updateGameState(data) {
+            document.getElementById('attempt').textContent = data.attempt;
+            showMessage(data.message, data.result);
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.className = 'message ' + type;
+        }
+
+        function addToGameLog(guess, result) {
+            const log = document.getElementById('gameLog');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = '<strong>' + guess + '</strong>: ' + result;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        document.getElementById('guessInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                makeGuess();
+            }
+        });
+
+        document.getElementById('guessInput').focus();
+    </script>
+</body>
+
+</html>
