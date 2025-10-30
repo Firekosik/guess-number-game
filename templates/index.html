@@ -26,7 +26,7 @@
                 </div>
 
                 <div class="input-section">
-                    <input type="number" id="guessInput" placeholder="Введите число..." min="1" max="100">
+                    <input type="number" id="guessInput" placeholder="Введите число..." min="1">
                     <button onclick="makeGuess()" id="guessBtn">Угадать!</button>
                 </div>
 
@@ -83,11 +83,13 @@
             const guessInput = document.getElementById('guessInput');
             const guess = parseInt(guessInput.value);
 
-            if (isNaN(guess) || guess < 1 || guess > 100) {
-                showMessage('Введите число от 1 до 100!', 'error');
+            // Базовая проверка
+            if (isNaN(guess) || guess < 1) {
+                showMessage('Пожалуйста, введите положительное число!', 'error');
                 return;
             }
 
+            // Основная проверка теперь на сервере
             fetch('/guess', {
                 method: 'POST',
                 headers: {
@@ -97,6 +99,11 @@
             })
                 .then(response => response.json())
                 .then(data => {
+                    if (data.result === 'error') {
+                        showMessage(data.message, 'error');
+                        return;
+                    }
+
                     updateGameState(data);
                     addToGameLog(guess, data.message);
 
@@ -119,6 +126,13 @@
         function startNewGame() {
             const difficulty = document.getElementById('difficulty').value;
             const playerName = document.getElementById('nameInput').value || 'Игрок';
+
+            // Обновляем placeholder в зависимости от сложности
+            let maxNumber = 100;
+            if (difficulty === 'easy') maxNumber = 50;
+            else if (difficulty === 'hard') maxNumber = 200;
+
+            document.getElementById('guessInput').placeholder = `Введите число от 1 до ${maxNumber}...`;
 
             fetch('/new_game', {
                 method: 'POST',
@@ -161,6 +175,17 @@
             log.appendChild(logEntry);
             log.scrollTop = log.scrollHeight;
         }
+
+        // Обновление placeholder при смене сложности
+        document.getElementById('difficulty').addEventListener('change', function () {
+            const difficulty = this.value;
+            let maxNumber = 100;
+
+            if (difficulty === 'easy') maxNumber = 50;
+            else if (difficulty === 'hard') maxNumber = 200;
+
+            document.getElementById('guessInput').placeholder = `Введите число от 1 до ${maxNumber}...`;
+        });
 
         document.getElementById('guessInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
