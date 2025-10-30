@@ -97,9 +97,23 @@ def index():
 
 @app.route('/guess', methods=['POST'])
 def make_guess():
-    """Обрабатывает попытку угадать число"""
     guess = int(request.form['guess'])
     secret_number = session['secret_number']
+    
+    # Определяем диапазон в зависимости от сложности
+    max_range = 100  # по умолчанию средний уровень
+    if session['max_attempts'] == 10:  # легкий уровень
+        max_range = 50
+    elif session['max_attempts'] == 5:  # сложный уровень
+        max_range = 200
+    
+    # Проверяем входит ли число в допустимый диапазон
+    if guess < 1 or guess > max_range:
+        return jsonify({
+            'result': 'error',
+            'message': f'❌ Введите число от 1 до {max_range}!'
+        })
+    
     session['attempts'] += 1
     
     response = {
@@ -109,7 +123,6 @@ def make_guess():
     }
     
     if guess == secret_number:
-        # Победа!
         points = 100 - (session['attempts'] * 10)
         session['score'] += max(points, 10)
         session['game_over'] = True
@@ -121,11 +134,9 @@ def make_guess():
             'total_score': session['score']
         })
         
-        # Сохраняем статистику
         game_manager.save_stats(session['player_name'], session['score'], won=True)
         
     elif session['attempts'] >= session['max_attempts']:
-        # Проигрыш
         session['game_over'] = True
         response.update({
             'result': 'lose',
@@ -135,7 +146,6 @@ def make_guess():
         game_manager.save_stats(session['player_name'], session['score'], won=False)
         
     else:
-        # Подсказка
         if guess < secret_number:
             hint = '📈 Загаданное число БОЛЬШЕ'
         else:
